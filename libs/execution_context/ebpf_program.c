@@ -1345,6 +1345,13 @@ ebpf_program_set_tail_call(_In_ const ebpf_program_t* next_program)
     // High volume call - Skip entry/exit logging.
     ebpf_result_t result;
     ebpf_program_tail_call_state_t* state = NULL;
+
+    EBPF_LOG_MESSAGE_UTF8_STRING(
+        EBPF_TRACELOG_LEVEL_VERBOSE,
+        EBPF_TRACELOG_KEYWORD_CORE,
+        "Callee program name is ",
+        &next_program->parameters.program_name);
+
     result = ebpf_state_load(_ebpf_program_state_index, (uintptr_t*)&state);
     if (result != EBPF_SUCCESS) {
         return result;
@@ -1356,10 +1363,20 @@ ebpf_program_set_tail_call(_In_ const ebpf_program_t* next_program)
 
     if (state->count == (MAX_TAIL_CALL_CNT - 1)) {
         EBPF_OBJECT_RELEASE_REFERENCE(&((ebpf_program_t*)next_program)->object);
+        ebpf_log_message_uint64(
+            EBPF_TRACELOG_LEVEL_VERBOSE,
+            EBPF_TRACELOG_KEYWORD_CORE,
+            "Returning EBPF_NO_MORE_TAIL_CALLS. Count is ",
+            state->count);
         return EBPF_NO_MORE_TAIL_CALLS;
     }
 
     state->next_program = next_program;
+    EBPF_LOG_MESSAGE_UTF8_STRING(
+        EBPF_TRACELOG_LEVEL_VERBOSE,
+        EBPF_TRACELOG_KEYWORD_CORE,
+        "Next Callee program name is ",
+        &state->next_program->parameters.program_name);
 
     return EBPF_SUCCESS;
 }
@@ -1403,6 +1420,11 @@ ebpf_program_invoke(
     program_state_stored = true;
 
     for (state.count = 0; state.count < MAX_TAIL_CALL_CNT; state.count++) {
+        EBPF_LOG_MESSAGE_UINT64(
+            EBPF_TRACELOG_LEVEL_ERROR,
+            EBPF_TRACELOG_KEYWORD_CORE,
+            "Tail call count: ",
+            state.count);
 
         if (current_program->parameters.code_type == EBPF_CODE_JIT ||
             current_program->parameters.code_type == EBPF_CODE_NATIVE) {
@@ -1437,6 +1459,11 @@ ebpf_program_invoke(
     }
 
 Done:
+    EBPF_LOG_MESSAGE_STRING(
+        EBPF_TRACELOG_LEVEL_ERROR,
+        EBPF_TRACELOG_KEYWORD_CORE,
+        "state next_program is ",
+        current_program != NULL ? "There is program left" : "Done");
     if (program_state_stored) {
         ebpf_assert_success(ebpf_state_store(_ebpf_program_state_index, 0, execution_state));
     }
