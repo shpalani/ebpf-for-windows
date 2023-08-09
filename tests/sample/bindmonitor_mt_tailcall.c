@@ -24,25 +24,17 @@ struct bpf_map_def bind_tail_call_map = {
     .type = BPF_MAP_TYPE_PROG_ARRAY,
     .key_size = sizeof(uint32_t),
     .value_size = sizeof(uint32_t),
-    .max_entries = MAX_TAIL_CALL_CNT + 3};
+    .max_entries = MAX_TAIL_CALL_CNT + 3 + 1};
 
-SEC("bind")
-bind_action_t
-BindMonitor_Caller(bind_md_t* ctx)
-{
-    bpf_printk("Start Tail call index %d\n", 0);
-    bpf_tail_call(ctx, &bind_tail_call_map, 0);
-
-    return BIND_DENY;
-}
 
 // Define a macro that defines a program which tail calls a function for the bind hook.
 #define DEFINE_BIND_TAIL_FUNC(x)                        \
     SEC("bind/" #x)                                     \
     bind_action_t BindMonitor_Callee##x(bind_md_t* ctx) \
     {                                                   \
-        bpf_printk("Tail call index %d\n", x + 1);      \
-        bpf_tail_call(ctx, &bind_tail_call_map, x + 1); \
+        int i = x + 1;                                  \
+        bpf_printk("Tail call index [x = %d], [x+1 = %d], [i=%d]\n", x, x + 1, i);      \
+        bpf_tail_call(ctx, &bind_tail_call_map, i); \
                                                         \
         return BIND_DENY;                               \
     }
@@ -85,13 +77,25 @@ DEFINE_BIND_TAIL_FUNC(33)
 // This line verifies that the BindMonitor_Caller prototype is correct by declaring a bind_hook_t
 // variable with the same name as the first tail call function.
 // This line is optional.
-bind_hook_t BindMonitor_Caller;
+// bind_hook_t BindMonitor_Caller;
 
 SEC("bind/34")
 bind_action_t
 BindMonitor_Callee34(bind_md_t* ctx)
 {
+    bpf_printk("Tail call index: BindMonitor_Callee34\n");
     // This function is the last tail call function for the bind hook.
     // This function returns BIND_PERMIT to allow the bind request to proceed.
     return BIND_PERMIT;
+}
+
+SEC("bind")
+bind_action_t
+BindMonitor_Caller(bind_md_t* ctx)
+{
+    bpf_printk("Start Tail call index %d\n", 0);
+    // bpf_tail_call(ctx, &bind_tail_call_map, 0);
+    return BindMonitor_Callee0(ctx);
+
+    // return BIND_DENY;
 }

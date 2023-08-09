@@ -133,8 +133,20 @@ ebpf_state_store(size_t index, uintptr_t value, _In_ const ebpf_execution_contex
     ebpf_state_entry_t* entry = NULL;
     ebpf_result_t return_value;
 
+    EBPF_LOG_MESSAGE_UINT64(
+        EBPF_TRACELOG_LEVEL_ERROR,
+            EBPF_TRACELOG_KEYWORD_CORE,
+            "ebpf_state_store - Getting state index: ",
+            index);
+
     return_value = _ebpf_state_get_entry(execution_context_state, &entry);
     if (return_value == EBPF_SUCCESS) {
+        
+        EBPF_LOG_MESSAGE_UINT64(
+            EBPF_TRACELOG_LEVEL_VERBOSE,
+            EBPF_TRACELOG_KEYWORD_CORE,
+            "Storing state value: ",
+            *(uint64_t*)&value);
         entry->state[index] = value;
     }
     return return_value;
@@ -149,9 +161,20 @@ ebpf_state_load(size_t index, _Out_ uintptr_t* value)
     ebpf_execution_context_state_t execution_context_state = {0};
     ebpf_get_execution_context_state(&execution_context_state);
 
+    EBPF_LOG_MESSAGE_UINT64(
+            EBPF_TRACELOG_LEVEL_VERBOSE,
+            EBPF_TRACELOG_KEYWORD_CORE,
+            "ebpf_state_load - Loading state index: ",
+            index);
+
     return_value = _ebpf_state_get_entry(&execution_context_state, &entry);
     if (return_value == EBPF_SUCCESS) {
         *value = entry->state[index];
+        EBPF_LOG_MESSAGE_UINT64(
+            EBPF_TRACELOG_LEVEL_VERBOSE,
+            EBPF_TRACELOG_KEYWORD_CORE,
+            "ebpf_state_load - Success loading state value: ",
+            *value);
     }
     return return_value;
 }

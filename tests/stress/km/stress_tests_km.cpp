@@ -1118,7 +1118,7 @@ _set_up_tailcall_program(bpf_object* object, const std::string& map_name)
     LOG_VERBOSE("({}) Opened fd:{} for map:{}", __func__, prog_map_fd, map_name.c_str());
 
     // Set up tail calls.
-    for (int index = 0; index < MAX_TAIL_CALL_CNT + 3; index++) {
+    for (uint32_t index = 0; index < MAX_TAIL_CALL_CNT + 3; index++) {
         try {
             std::string bind_program_name{"BindMonitor_Callee"};
             bind_program_name += std::to_string(index);
@@ -1139,7 +1139,8 @@ _set_up_tailcall_program(bpf_object* object, const std::string& map_name)
             }
             LOG_VERBOSE("({}) - bpf_program__fd() for callee_fd:{} success.", bind_program_name, callee_fd);
 
-            uint32_t result = bpf_map_update_elem(prog_map_fd, &index, &callee_fd, 0);
+            uint32_t key = index;
+            uint32_t result = bpf_map_update_elem(prog_map_fd, &key, &callee_fd, 0);
             if (result < 0) {
                 LOG_ERROR("({}) - bpf_map_update_elem() failed. errno: {}", bind_program_name, errno);
                 REQUIRE(result == ERROR_SUCCESS);

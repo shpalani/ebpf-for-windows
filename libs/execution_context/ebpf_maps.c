@@ -2329,6 +2329,12 @@ ebpf_map_get_program_from_entry(_Inout_ ebpf_map_t* map, size_t key_size, _In_re
             map->ebpf_map_definition.type);
         return NULL;
     }
+    EBPF_LOG_MESSAGE_UINT64(
+            EBPF_TRACELOG_LEVEL_VERBOSE,
+            EBPF_TRACELOG_KEYWORD_MAP,
+            "Getting ebpf_map_get_program_from_entry ",
+            *key);
+
     return (ebpf_program_t*)ebpf_map_metadata_tables[type].get_object_from_entry(map, key);
 }
 

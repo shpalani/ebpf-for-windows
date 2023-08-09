@@ -25,6 +25,7 @@ class _test_helper_libbpf
     ~_test_helper_libbpf();
     void
     initialize();
+    _single_instance_hook* get_bind_hook();
 
   private:
     _test_helper_end_to_end test_helper_end_to_end;

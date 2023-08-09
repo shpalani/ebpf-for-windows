@@ -213,6 +213,7 @@ typedef class _single_instance_hook : public _hook_helper
     fire(_Inout_ void* context, _Out_ uint32_t* result)
     {
         if (client_binding_context == nullptr) {
+            printf("Extension not loaded.\n");
             return EBPF_EXTENSION_FAILED_TO_LOAD;
         }
         ebpf_result_t (*invoke_program)(_In_ const void* link, _Inout_ void* context, _Out_ uint32_t* result) =

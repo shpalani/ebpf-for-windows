@@ -1349,21 +1349,31 @@ ebpf_program_set_tail_call(_In_ const ebpf_program_t* next_program)
     EBPF_LOG_MESSAGE_UTF8_STRING(
         EBPF_TRACELOG_LEVEL_VERBOSE,
         EBPF_TRACELOG_KEYWORD_CORE,
-        "Callee program name is ",
+        "Current Callee program name is ",
         &next_program->parameters.program_name);
 
     result = ebpf_state_load(_ebpf_program_state_index, (uintptr_t*)&state);
     if (result != EBPF_SUCCESS) {
+        EBPF_LOG_MESSAGE_STRING(
+            EBPF_TRACELOG_LEVEL_VERBOSE,
+            EBPF_TRACELOG_KEYWORD_CORE,
+            "ebpf_state_load returned ",
+            "invalid");
         return result;
     }
 
     if (state == NULL) {
+        EBPF_LOG_MESSAGE_STRING(
+            EBPF_TRACELOG_LEVEL_VERBOSE,
+            EBPF_TRACELOG_KEYWORD_CORE,
+            "state is EBPF_INVALID_ARGUMENT  ",
+            NULL);
         return EBPF_INVALID_ARGUMENT;
     }
 
     if (state->count == (MAX_TAIL_CALL_CNT - 1)) {
         EBPF_OBJECT_RELEASE_REFERENCE(&((ebpf_program_t*)next_program)->object);
-        ebpf_log_message_uint64(
+        EBPF_LOG_MESSAGE_UINT64(
             EBPF_TRACELOG_LEVEL_VERBOSE,
             EBPF_TRACELOG_KEYWORD_CORE,
             "Returning EBPF_NO_MORE_TAIL_CALLS. Count is ",
@@ -1423,7 +1433,7 @@ ebpf_program_invoke(
         EBPF_LOG_MESSAGE_UINT64(
             EBPF_TRACELOG_LEVEL_ERROR,
             EBPF_TRACELOG_KEYWORD_CORE,
-            "Tail call count: ",
+            "ebpf_program_invoke - Tail call count: ",
             state.count);
 
         if (current_program->parameters.code_type == EBPF_CODE_JIT ||

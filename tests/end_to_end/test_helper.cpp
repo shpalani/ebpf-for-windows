@@ -813,6 +813,9 @@ _test_helper_libbpf::initialize()
     test_helper_end_to_end.initialize();
 }
 
+_single_instance_hook* 
+_test_helper_libbpf::get_bind_hook() { return bind_hook;}  
+
 _test_helper_libbpf::~_test_helper_libbpf()
 {
     delete xdp_hook;

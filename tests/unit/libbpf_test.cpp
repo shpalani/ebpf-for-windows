@@ -3010,13 +3010,15 @@ emulate_bind_temp(std::function<ebpf_result_t(void*, uint32_t*)>& invoke, uint64
     ctx.app_id_end = (uint8_t*)(app_id.c_str()) + app_id.size();
     ctx.process_id = pid;
     ctx.operation = BIND_OPERATION_BIND;
+    printf("emulate_bind_temp: app_id=%s, pid=%llu\n", app_id.c_str(), pid);
     REQUIRE(invoke(reinterpret_cast<void*>(&ctx), &result) == EBPF_SUCCESS);
+    printf("emulate_bind_temp: result=%u\n", result);
     return static_cast<bind_action_t>(result);
 }
 
 TEST_CASE("bindmonitor_mt_tail_call", "[libbpf]")
 {
-    _test_helper_libbpf test_helper;
+    _test_helper_end_to_end test_helper;
     test_helper.initialize();
 
     program_info_provider_t bind_program_info;
@@ -3024,6 +3026,16 @@ TEST_CASE("bindmonitor_mt_tail_call", "[libbpf]")
 
     struct bpf_object* object = bpf_object__open("bindmonitor_mt_tailcall.o");
     REQUIRE(object != nullptr);
+    
+    REQUIRE(ebpf_object_set_execution_type(object, EBPF_EXECUTION_JIT) == EBPF_SUCCESS);
+    bpf_program* program_all = nullptr;
+    program_all = bpf_object__next_program(object, program_all);
+    while (program_all != nullptr) {
+    
+        bpf_program__set_type(program_all, BPF_PROG_TYPE_BIND);
+        bpf_program__set_expected_attach_type(program_all, BPF_XDP);
+        program_all = bpf_object__next_program(object, program_all);
+    }
 
     // Load the BPF program.
     REQUIRE(bpf_object__load(object) == 0);
@@ -3047,11 +3059,14 @@ TEST_CASE("bindmonitor_mt_tail_call", "[libbpf]")
     REQUIRE(first_program_fd > 0);
     printf("First bpf_program__fd succeeded for [%s], fd: [%d]\n", first_program_name.c_str(), first_program_fd);
 
+    size_t k = 0;
+    bpf_map_update_elem(map_fd, &k, &first_program_fd, 0);
+    
     // Add each tail call program to the map.
-    for (int32_t i = 0; i < MAX_TAIL_CALL_CNT + 3; i++) {
+    for (uint32_t i = 1; i < MAX_TAIL_CALL_CNT + 3; i++) {
         std::string program_name{"BindMonitor_Callee"};
         program_name += std::to_string(i);
-        printf("Looking for program [%s]\n", program_name.c_str());
+
         struct bpf_program* program = bpf_object__find_program_by_name(object, program_name.c_str());
         REQUIRE(program != nullptr);
         printf("bpf_object__find_program_by_name succeeded for %s\n", program_name.c_str());
@@ -3061,40 +3076,57 @@ TEST_CASE("bindmonitor_mt_tail_call", "[libbpf]")
         REQUIRE(program_fd > 0);
         printf("bpf_program__fd succeeded for [%s], fd: [%d]\n", program_name.c_str(), program_fd);
 
-        // uint32_t key = i;
-        uint32_t result = bpf_map_update_elem(map_fd, &i, &program_fd, 0);
+        uint32_t key = i;
+        uint32_t result = bpf_map_update_elem(map_fd, &key, &program_fd, 0);
         REQUIRE(result == 0);
-        printf("bpf_map_update_elem succeeded for [%s], index: [%d]\n", program_name.c_str(), i);
+        printf("bpf_map_update_elem succeeded for [%s], key: [%u], value: [%d]\n", program_name.c_str(), key, program_fd);
 
         uint32_t value = 0;
-        REQUIRE(bpf_map_lookup_elem(map_fd, &i, &value) == EBPF_SUCCESS);
+        REQUIRE(bpf_map_lookup_elem(map_fd, &key, &value) == EBPF_SUCCESS);
+        printf("bpf_map_lookup_elem succeeded for [%s], key: [%u], value: [%u]\n", program_name.c_str(), key, value);
     }
 
     // Verify that the map contains the correct number of programs.
-    uint64_t progfd = 0;
-    for (int x = 0; x < MAX_TAIL_CALL_CNT + 3 - 1; x++) {
-        REQUIRE(bpf_map_get_next_key(map_fd, &progfd, &progfd) == 0);
-        printf("bpf_map_get_next_key succeeded for [%zu]\n", progfd);
-        REQUIRE(progfd != 0);
+    uint32_t key = 0;
+    uint32_t val = 0;
+    bpf_map_lookup_elem(map_fd, &key, &val);
+    printf("bpf_map_get_next_key succeeded for [key=%u], [value=%u]\n", key, val);
+    for (int x = 0; x < MAX_TAIL_CALL_CNT + 3 -1 + 1; x++) {
+        REQUIRE(bpf_map_get_next_key(map_fd, &key, &key) == 0);
+        uint32_t value = 0;
+        bpf_map_lookup_elem(map_fd, &key, &value);
+        printf("bpf_map_get_next_key succeeded for [key=%u], [value=%u]\n", key, value);
+        REQUIRE(key != 0);
     }
 
-    REQUIRE(bpf_map_get_next_key(map_fd, &progfd, &progfd) < 0);
+    REQUIRE(bpf_map_get_next_key(map_fd, &key, &key) < 0);
     REQUIRE(errno == ENOENT);
 
+    const char* pin_path2 = "\\temp\\test2";
+    REQUIRE(bpf_object__pin_programs(object, pin_path2) == 0);
+    
+    printf("bpf_object__pin_programs succeeded\n");
+    const char* pin_path = "\\temp\\test";
+    REQUIRE(bpf_map__pin(map, pin_path) == 0);
+    printf("1");
     // Create a hook for the bind program.
     single_instance_hook_t hook(EBPF_PROGRAM_TYPE_BIND, EBPF_ATTACH_TYPE_BIND);
     REQUIRE(hook.initialize() == EBPF_SUCCESS);
-
+    
     // Attach the hook.
-    bpf_link_ptr link{};
+    bpf_link_ptr link;    
     uint32_t ifindex = 0;
-    uint64_t fake_pid = 12345;
+    uint64_t fake_pid = 123456;
     REQUIRE(hook.attach_link(first_program_fd, &ifindex, sizeof(ifindex), &link) == EBPF_SUCCESS);
-
+    
     std::function<ebpf_result_t(void*, uint32_t*)> invoke =
         [&hook](_Inout_ void* context, _Out_ uint32_t* result) -> ebpf_result_t { return hook.fire(context, result); };
+
     // Bind first port - success
     REQUIRE(emulate_bind_temp(invoke, fake_pid, "fake_app_1") == BIND_PERMIT);
+    printf("Done\n");
+
+    bpf_object__unpin_programs(object, pin_path2);
 
     hook.detach_and_close_link(&link);
 }
