@@ -1232,7 +1232,9 @@ _load_attach_tail_program(
 {
     bpf_object_ptr object_ptr;
     bpf_object* object_raw_ptr = nullptr;
-    bpf_link* link = nullptr;
+    // bpf_link* link = nullptr;
+
+    UNREFERENCED_PARAMETER(attach_type);
 
     // Get the 'object' ptr for the program associated with this thread.
     object_raw_ptr = bpf_object__open(file_name.c_str());
@@ -1302,7 +1304,9 @@ _load_attach_tail_program(
         program->program_name,
         file_name.c_str());
 
-    result = ebpf_program_attach(program, &attach_type, nullptr, 0, &link);
+    uint32_t ifindex = 0;
+    // result = ebpf_program_attach_by_fd(program_fd, &attach_type, &ifindex, sizeof(ifindex), &link);
+    result = bpf_prog_attach(program_fd, ifindex, BPF_ATTACH_TYPE_BIND, 0);
     if (result != ERROR_SUCCESS) {
         LOG_ERROR(
             "{}({}) FATAL ERROR: bpf_prog_attach({}) failed. program:{}, errno:{}",
