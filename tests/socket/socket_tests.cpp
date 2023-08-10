@@ -166,6 +166,7 @@ TEST_CASE("attach_sock_addr_programs", "[sock_addr_tests]")
 {
     bpf_prog_info program_info = {};
     uint32_t program_info_size = sizeof(program_info);
+
     native_module_helper_t helper;
     helper.initialize("cgroup_sock_addr");
 
@@ -248,7 +249,6 @@ TEST_CASE("attach_sock_addr_programs", "[sock_addr_tests]")
         BPF_CGROUP_INET6_RECV_ACCEPT,
         0);
     REQUIRE(result == 0);
-
     bpf_object__close(object);
 }
 
