@@ -2984,7 +2984,7 @@ TEST_CASE("sequential_tail_call", "[libbpf]")
 }
 
 bind_action_t
-emulate_bind_temp(std::function<ebpf_result_t(void*, uint32_t*)>& invoke, uint64_t pid, const char* appid)
+emulate_bind_tail_call(std::function<ebpf_result_t(void*, uint32_t*)>& invoke, uint64_t pid, const char* appid)
 {
     uint32_t result;
     std::string app_id = appid;
@@ -2993,7 +2993,7 @@ emulate_bind_temp(std::function<ebpf_result_t(void*, uint32_t*)>& invoke, uint64
     ctx.app_id_end = (uint8_t*)(app_id.c_str()) + app_id.size();
     ctx.process_id = pid;
     ctx.operation = BIND_OPERATION_BIND;
-    printf("emulate_bind_temp: app_id=%s, pid=%llu\n", app_id.c_str(), pid);
+
     REQUIRE(invoke(reinterpret_cast<void*>(&ctx), &result) == EBPF_SUCCESS);
     printf("emulate_bind_temp: result=%u\n", result);
     return static_cast<bind_action_t>(result);
@@ -3001,7 +3001,7 @@ emulate_bind_temp(std::function<ebpf_result_t(void*, uint32_t*)>& invoke, uint64
 
 TEST_CASE("bindmonitor_mt_tail_call", "[libbpf]")
 {
-    usersim_trace_logging_set_enabled(true, _EBPF_TRACELOG_LEVEL_VERBOSE, MAXUINT64);
+    usersim_trace_logging_set_enabled(true, _EBPF_TRACELOG_LEVEL_ERROR, MAXUINT64);
 
     _test_helper_end_to_end test_helper;
     test_helper.initialize();
@@ -3014,17 +3014,14 @@ TEST_CASE("bindmonitor_mt_tail_call", "[libbpf]")
 
     // Load the BPF program.
     REQUIRE(bpf_object__load(object) == 0);
-    printf("bpf_object__load succeeded\n");
 
     // Get the map used to store the next program to call.
     struct bpf_map* map = bpf_object__find_map_by_name(object, "bind_tail_call_map");
     REQUIRE(map != nullptr);
-    printf("bpf_object__find_map_by_name succeeded\n");
 
     // Get the fd of the prog array map.
     fd_t map_fd = bpf_map__fd(map);
     REQUIRE(map_fd > 0);
-    printf("bpf_map__fd succeeded\n");
 
     std::string first_program_name{"BindMonitor_Caller"};
     struct bpf_program* first_program = bpf_object__find_program_by_name(object, first_program_name.c_str());
@@ -3032,27 +3029,6 @@ TEST_CASE("bindmonitor_mt_tail_call", "[libbpf]")
 
     fd_t first_program_fd = bpf_program__fd(first_program);
     REQUIRE(first_program_fd > 0);
-    printf("First bpf_program__fd succeeded for [%s], fd: [%d]\n", first_program_name.c_str(), first_program_fd);
-    
-    // Add each tail call program to the map.
-    for (int i = 0; i < MAX_TAIL_CALL_CNT + 3; i++) {
-        std::string program_name{"BindMonitor_Callee"};
-        program_name += std::to_string(i);
-
-        struct bpf_program* program = bpf_object__find_program_by_name(object, program_name.c_str());
-        REQUIRE(program != nullptr);
-        printf("bpf_object__find_program_by_name succeeded for %s\n", program_name.c_str());
-
-        // Get the fd for the program.
-        fd_t program_fd = bpf_program__fd(program);
-        REQUIRE(program_fd > 0);
-        printf("bpf_program__fd succeeded for [%s], fd: [%d]\n", program_name.c_str(), program_fd);
-
-        // uint32_t key = i;
-        uint32_t result = bpf_map_update_elem(map_fd, &i, &program_fd, 0);
-        REQUIRE(result == 0);
-        printf("bpf_map_update_elem succeeded for [%s], key: [%u], value: [%d]\n", program_name.c_str(), i, program_fd);
-    }
 
     // Verify that the map contains the correct number of programs.
     uint32_t key = 0;
@@ -3066,35 +3042,26 @@ TEST_CASE("bindmonitor_mt_tail_call", "[libbpf]")
         printf("bpf_map_get_next_key succeeded for [key=%u], [value=%u]\n", key, value);
         REQUIRE(key != 0);
     }
-    printf("Next key is [key=%u]\n", key);
     REQUIRE(bpf_map_get_next_key(map_fd, &key, &key) < 0);
     REQUIRE(errno == ENOENT);
-
-    // const char* pin_path2 = "\\temp\\test2";
-    // REQUIRE(bpf_object__pin_programs(object, pin_path2) == 0);
-    
-    // printf("bpf_object__pin_programs succeeded\n");
-    // const char* pin_path = "\\temp\\test";
-    // REQUIRE(bpf_map__pin(map, pin_path) == 0);
 
     // Create a hook for the bind program.
     single_instance_hook_t hook(EBPF_PROGRAM_TYPE_BIND, EBPF_ATTACH_TYPE_BIND);
     REQUIRE(hook.initialize() == EBPF_SUCCESS);
-    
+
     // Attach the hook.
-    bpf_link_ptr link;    
+    bpf_link_ptr link;
     uint32_t ifindex = 0;
     uint64_t fake_pid = 123456;
     REQUIRE(hook.attach_link(first_program_fd, &ifindex, sizeof(ifindex), &link) == EBPF_SUCCESS);
-    
+
     std::function<ebpf_result_t(void*, uint32_t*)> invoke =
         [&hook](_Inout_ void* context, _Out_ uint32_t* result) -> ebpf_result_t { return hook.fire(context, result); };
 
     // Bind first port - success
-    REQUIRE(emulate_bind_temp(invoke, fake_pid, "fake_app_1") == BIND_PERMIT);
-    printf("Done\n");
-
-    // bpf_object__unpin_programs(object, pin_path2);
+    REQUIRE(emulate_bind_tail_call(invoke, fake_pid, "fake_app_1") == BIND_PERMIT);
 
     hook.detach_and_close_link(&link);
+
+    usersim_trace_logging_set_enabled(false, 0, 0);
 }

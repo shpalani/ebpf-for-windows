@@ -19,24 +19,78 @@
 #include "bpf_helpers.h"
 #include "ebpf_nethooks.h"
 
-SEC("maps")
-struct bpf_map_def bind_tail_call_map = {
-    .type = BPF_MAP_TYPE_PROG_ARRAY,
-    .key_size = sizeof(uint32_t),
-    .value_size = sizeof(uint32_t),
-    .max_entries = MAX_TAIL_CALL_CNT + 3};
-
-
 // Define a macro that defines a program which tail calls a function for the bind hook.
 #define DEFINE_BIND_TAIL_FUNC(x)                        \
     SEC("bind/" #x)                                     \
     bind_action_t BindMonitor_Callee##x(bind_md_t* ctx) \
     {                                                   \
-        bpf_printk("Calling Tail call index [x = %d], [x+1 = %d]\n", x, x + 1);      \
-        bpf_tail_call(ctx, &bind_tail_call_map, x+1); \
-                                                        \
+        int i = x+1;                                    \
+        bpf_printk("Calling Tail call index [x = %d], [x+1 = %d]\n", x, i);\
+        if (bpf_tail_call(ctx, &bind_tail_call_map, i) < 0) { \
+            bpf_printk("Tail call failed at index %d\n", i);  \
+        }                                               \
         return BIND_DENY;                               \
     }
+
+#define DECLARE_BIND_TAIL_FUNC(x) bind_action_t BindMonitor_Callee##x(bind_md_t* ctx);
+
+DECLARE_BIND_TAIL_FUNC(0)
+DECLARE_BIND_TAIL_FUNC(1)
+DECLARE_BIND_TAIL_FUNC(2)
+DECLARE_BIND_TAIL_FUNC(3)
+DECLARE_BIND_TAIL_FUNC(4)
+DECLARE_BIND_TAIL_FUNC(5)
+DECLARE_BIND_TAIL_FUNC(6)
+DECLARE_BIND_TAIL_FUNC(7)
+DECLARE_BIND_TAIL_FUNC(8)
+DECLARE_BIND_TAIL_FUNC(9)
+DECLARE_BIND_TAIL_FUNC(10)
+DECLARE_BIND_TAIL_FUNC(11)
+DECLARE_BIND_TAIL_FUNC(12)
+DECLARE_BIND_TAIL_FUNC(13)
+DECLARE_BIND_TAIL_FUNC(14)
+DECLARE_BIND_TAIL_FUNC(15)
+DECLARE_BIND_TAIL_FUNC(16)
+DECLARE_BIND_TAIL_FUNC(17)
+DECLARE_BIND_TAIL_FUNC(18)
+DECLARE_BIND_TAIL_FUNC(19)
+DECLARE_BIND_TAIL_FUNC(20)
+DECLARE_BIND_TAIL_FUNC(21)
+DECLARE_BIND_TAIL_FUNC(22)
+DECLARE_BIND_TAIL_FUNC(23)
+DECLARE_BIND_TAIL_FUNC(24)
+DECLARE_BIND_TAIL_FUNC(25)
+DECLARE_BIND_TAIL_FUNC(26)
+DECLARE_BIND_TAIL_FUNC(27)
+DECLARE_BIND_TAIL_FUNC(28)
+DECLARE_BIND_TAIL_FUNC(29)
+DECLARE_BIND_TAIL_FUNC(30)
+DECLARE_BIND_TAIL_FUNC(31)
+DECLARE_BIND_TAIL_FUNC(32)
+DECLARE_BIND_TAIL_FUNC(33)
+DECLARE_BIND_TAIL_FUNC(34)
+
+struct
+{
+    __uint(type, BPF_MAP_TYPE_PROG_ARRAY);
+    __type(key, uint32_t);
+    __uint(max_entries, MAX_TAIL_CALL_CNT + 3);
+    __array(values, bind_action_t(bind_md_t* ctx));
+} bind_tail_call_map SEC(".maps") = {
+    .values =
+        {
+            BindMonitor_Callee0,  BindMonitor_Callee1,  BindMonitor_Callee2,  BindMonitor_Callee3,
+            BindMonitor_Callee4,  BindMonitor_Callee5,  BindMonitor_Callee6,  BindMonitor_Callee7,
+            BindMonitor_Callee8,  BindMonitor_Callee9,  BindMonitor_Callee10, BindMonitor_Callee11,
+            BindMonitor_Callee12, BindMonitor_Callee13, BindMonitor_Callee14, BindMonitor_Callee15,
+            BindMonitor_Callee16, BindMonitor_Callee17, BindMonitor_Callee18, BindMonitor_Callee19,
+            BindMonitor_Callee20, BindMonitor_Callee21, BindMonitor_Callee22, BindMonitor_Callee23,
+            BindMonitor_Callee24, BindMonitor_Callee25, BindMonitor_Callee26, BindMonitor_Callee27,
+            BindMonitor_Callee28, BindMonitor_Callee29, BindMonitor_Callee30, BindMonitor_Callee31,
+            BindMonitor_Callee32, BindMonitor_Callee33, BindMonitor_Callee34,
+
+        }
+};
 
 DEFINE_BIND_TAIL_FUNC(0)
 DEFINE_BIND_TAIL_FUNC(1)
@@ -76,7 +130,20 @@ DEFINE_BIND_TAIL_FUNC(33)
 // This line verifies that the BindMonitor_Caller prototype is correct by declaring a bind_hook_t
 // variable with the same name as the first tail call function.
 // This line is optional.
-// bind_hook_t BindMonitor_Caller;
+bind_hook_t BindMonitor_Caller;
+
+SEC("bind")
+bind_action_t
+BindMonitor_Caller(bind_md_t* ctx)
+{
+    bpf_printk("Start Tail call index %d\n", 0);
+    if (bpf_tail_call(ctx, &bind_tail_call_map, 0) < 0) {
+        bpf_printk("Failed Tail call index %d\n", 0);
+        return BIND_DENY;
+    }
+
+    return BIND_DENY;
+}
 
 SEC("bind/34")
 bind_action_t
@@ -86,18 +153,4 @@ BindMonitor_Callee34(bind_md_t* ctx)
     // This function is the last tail call function for the bind hook.
     // This function returns BIND_PERMIT to allow the bind request to proceed.
     return BIND_PERMIT;
-}
-
-SEC("bind")
-bind_action_t
-BindMonitor_Caller(bind_md_t* ctx)
-{
-    bpf_printk("Start Tail call index %d\n", 0);
-    if (bpf_tail_call(ctx, &bind_tail_call_map, 0) < 0)
-    {
-        bpf_printk("Failed Tail call index %d\n", 0);
-        return BIND_DENY;
-    }
-
-    return BIND_DENY;
 }

@@ -712,6 +712,69 @@ TEST_CASE("bindmonitor_tailcall_native_test", "[native_tests]")
     cleanup();
 }
 
+void
+bindmonitor_mt_test(_In_ struct bpf_object* object)
+{
+    UNREFERENCED_PARAMETER(object);
+    WSAData data;
+    SOCKET sockets[2];
+    REQUIRE(WSAStartup(2, &data) == 0);
+
+    // First and second binds should succeed.
+    REQUIRE(perform_bind(&sockets[0], 30000) == 0);
+    REQUIRE(perform_bind(&sockets[1], 30001) == 0);
+    printf("Successfully bound first two sockets\n");
+
+    WSACleanup();
+}
+
+#if !defined(MAX_TAIL_CALL_CNT)
+#define MAX_TAIL_CALL_CNT 32
+#endif
+
+#define MAX_TAIL_CALL_PROGS MAX_TAIL_CALL_CNT + 3
+TEST_CASE("bindmonitor_mt_tailcall_native_test", "[native_tests]")
+{
+    struct bpf_object* object = nullptr;
+    hook_helper_t hook(EBPF_ATTACH_TYPE_BIND);
+    program_load_attach_helper_t _helper;
+    _helper.initialize(
+        "bindmonitor_mt_tailcall.sys",
+        BPF_PROG_TYPE_BIND,
+        "BindMonitor_Caller",
+        EBPF_EXECUTION_NATIVE,
+        nullptr,
+        0,
+        hook);
+    object = _helper.get_object();
+    printf("Successfully loaded program\n");
+
+    fd_t prog_map_fd = bpf_object__find_map_fd_by_name(object, "bind_tail_call_map");
+    REQUIRE(prog_map_fd > 0);
+
+    struct bpf_program* caller = bpf_object__find_program_by_name(object, "BindMonitor_Caller");
+    printf("bpf_object__find_program_by_name succeeded for [BindMonitor_Caller], fd=[%d]\n", caller->fd);
+
+    // Check each tail call program in the map.
+    for (int i = 0; i < MAX_TAIL_CALL_PROGS; i++) {
+        std::string program_name{"BindMonitor_Callee"};
+        program_name += std::to_string(i);
+
+        struct bpf_program* program = bpf_object__find_program_by_name(object, program_name.c_str());
+        REQUIRE(program != nullptr);
+        printf("bpf_object__find_program_by_name succeeded for [%s], fd=[%d]\n", program_name.c_str(), program->fd);
+    }
+
+    // Perform bind test.
+    bindmonitor_mt_test(object);
+
+    // Clean up tail calls.
+    for (int index = 0; index < MAX_TAIL_CALL_PROGS; index++) {
+        REQUIRE(bpf_map_update_elem(prog_map_fd, &index, &ebpf_fd_invalid, 0) == 0);
+    }
+    printf("Successfully cleaned up\n");
+}
+
 #define SOCKET_TEST_PORT 0x3bbf
 
 TEST_CASE("bpf_get_current_pid_tgid", "[helpers]")

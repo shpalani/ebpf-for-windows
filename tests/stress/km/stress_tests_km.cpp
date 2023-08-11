@@ -1101,6 +1101,7 @@ _print_test_control_info(const test_control_info& test_control_info)
     }
 }
 
+#if 0
 static void
 _set_up_tailcall_program(bpf_object* object, const std::string& map_name)
 {
@@ -1118,7 +1119,7 @@ _set_up_tailcall_program(bpf_object* object, const std::string& map_name)
     LOG_VERBOSE("({}) Opened fd:{} for map:{}", __func__, prog_map_fd, map_name.c_str());
 
     // Set up tail calls.
-    for (uint32_t index = 0; index < MAX_TAIL_CALL_CNT + 3; index++) {
+    for (int index = 0; index < MAX_TAIL_CALL_CNT; index++) {
         try {
             std::string bind_program_name{"BindMonitor_Callee"};
             bind_program_name += std::to_string(index);
@@ -1139,8 +1140,7 @@ _set_up_tailcall_program(bpf_object* object, const std::string& map_name)
             }
             LOG_VERBOSE("({}) - bpf_program__fd() for callee_fd:{} success.", bind_program_name, callee_fd);
 
-            uint32_t key = index;
-            uint32_t result = bpf_map_update_elem(prog_map_fd, &key, &callee_fd, 0);
+            uint32_t result = bpf_map_update_elem(prog_map_fd, &index, &callee_fd, 0);
             if (result < 0) {
                 LOG_ERROR("({}) - bpf_map_update_elem() failed. errno: {}", bind_program_name, errno);
                 REQUIRE(result == ERROR_SUCCESS);
@@ -1152,7 +1152,7 @@ _set_up_tailcall_program(bpf_object* object, const std::string& map_name)
         }
     }
 }
-
+#endif
 static void
 _invoke_mt_bindmonitor_tail_call_thread_function(thread_context& context)
 {
@@ -1232,9 +1232,7 @@ _load_attach_tail_program(
 {
     bpf_object_ptr object_ptr;
     bpf_object* object_raw_ptr = nullptr;
-    // bpf_link* link = nullptr;
-
-    UNREFERENCED_PARAMETER(attach_type);
+    bpf_link* link = nullptr;
 
     // Get the 'object' ptr for the program associated with this thread.
     object_raw_ptr = bpf_object__open(file_name.c_str());
@@ -1304,9 +1302,7 @@ _load_attach_tail_program(
         program->program_name,
         file_name.c_str());
 
-    uint32_t ifindex = 0;
-    // result = ebpf_program_attach_by_fd(program_fd, &attach_type, &ifindex, sizeof(ifindex), &link);
-    result = bpf_prog_attach(program_fd, ifindex, BPF_ATTACH_TYPE_BIND, 0);
+    result = ebpf_program_attach(program, &attach_type, nullptr, 0, &link);
     if (result != ERROR_SUCCESS) {
         LOG_ERROR(
             "{}({}) FATAL ERROR: bpf_prog_attach({}) failed. program:{}, errno:{}",
@@ -1340,23 +1336,25 @@ _mt_bindmonitor_tail_call_invoke_program_test(const test_control_info& test_cont
         _load_attach_tail_program(file_name, 0, EBPF_ATTACH_TYPE_BIND, program_name, program_type);
 
     // Set up the tail call programs.
-    _set_up_tailcall_program(program_object.get(), map_name);
+    //_set_up_tailcall_program(program_object.get(), map_name);
 
     // Needed for thread_context initialization.
     constexpr uint32_t MAX_BIND_PROGRAM = 1;
 
     // Storage for object pointers for each ebpf program file opened by bpf_object__open().
     std::vector<object_table_entry> object_table(MAX_BIND_PROGRAM);
+#if 1
     for (uint32_t index = 0; auto& entry : object_table) {
         entry.available = true;
         entry.lock = std::make_unique<std::mutex>();
         entry.object = std::move(program_object);
-        entry.attach = !(index % 2) ? true : false;
+        // entry.attach = !(index % 2) ? true : false;
+        entry.attach = true;
         entry.index = index++;
         entry.reuse_count = 0;
         entry.tag = 0xC001DEA2;
     }
-
+#endif
     size_t total_threads = test_control_info.threads_count;
     std::vector<thread_context> thread_context_table(
         total_threads, {{}, {}, false, {}, thread_role_type::ROLE_NOT_SET, 0, 0, 0, false, 0, 0, object_table});
