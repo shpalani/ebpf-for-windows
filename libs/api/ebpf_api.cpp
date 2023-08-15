@@ -1161,7 +1161,7 @@ ebpf_program_attach(
         result = EBPF_INVALID_ARGUMENT;
         goto Exit;
     }
-
+    printf("ebpf_program_attach: program handle [%s]\n", program->program_name);
     result =
         _link_ebpf_program(program->handle, program_attach_type, link, (uint8_t*)attach_parameters, attach_params_size);
 
@@ -1186,6 +1186,8 @@ ebpf_program_attach_by_fd(
     if (program_handle == ebpf_handle_invalid) {
         EBPF_RETURN_RESULT(EBPF_INVALID_FD);
     }
+    printf("ebpf_program_attach_by_fd: program handle [%zd], program_fd=[%d]\n", 
+            program_handle, program_fd);
 
     if (attach_type == nullptr) {
         // Unspecified attach_type is allowed only if we can find an ebpf_program_t.
@@ -1193,7 +1195,7 @@ ebpf_program_attach_by_fd(
         if (program == nullptr) {
             EBPF_RETURN_RESULT(EBPF_INVALID_ARGUMENT);
         }
-
+        printf("ebpf_program_attach_by_fd: attach type is null\n");
         EBPF_RETURN_RESULT(ebpf_program_attach(program, attach_type, attach_parameters, attach_parameters_size, link));
     }
 
@@ -1413,6 +1415,7 @@ clean_up_ebpf_programs(_Inout_ std::vector<ebpf_program_t*>& programs) noexcept
 {
     EBPF_LOG_ENTRY();
     for (auto& program : programs) {
+        printf("Unloading program %s\n", program->program_name);
         clean_up_ebpf_program(program);
     }
     programs.resize(0);
@@ -1629,6 +1632,7 @@ _initialize_ebpf_programs_native(
         program_handles[i] = ebpf_handle_invalid;
         program->program_type = info.type_uuid;
         program->attach_type = info.attach_type_uuid;
+        printf("Program name: [%s], handle:[%zd], fd:[%d]\n", program->program_name, program->handle, program->fd);
     }
 
 Exit:
@@ -2777,10 +2781,13 @@ _Requires_lock_not_held_(_ebpf_state_mutex) _Must_inspect_result_ ebpf_result_t
 
     if (program->fd != ebpf_fd_invalid) {
         Platform::_close(program->fd);
+        printf("Closing program fd %d, for program [%s]\n", program->fd, program->program_name);
         program->fd = ebpf_fd_invalid;
     }
     if (program->handle != ebpf_handle_invalid) {
         std::unique_lock lock(_ebpf_state_mutex);
+        printf("Closing program handle [%zd], for program [%s]\n", program->handle, program->program_name);
+        // Platform::CloseHandle(program->handle);
         _ebpf_programs.erase(program->handle);
         program->handle = ebpf_handle_invalid;
     }
@@ -2936,6 +2943,7 @@ _load_native_programs(
     if (count_of_maps) {
         memcpy(map_handles, reply->data, map_handles_size);
     }
+    // Sharmila: Is this correct?
     memcpy(program_handles, reply->data + map_handles_size, program_handles_size);
 
 Done:
@@ -3050,6 +3058,8 @@ _ebpf_program_load_native(
             goto Done;
         }
 
+        printf("Loaded native module %s, [fd=%d], [count of programs=[%zu]\n", file_name, native_module_fd, count_of_programs);
+
         native_module_handle = ebpf_handle_invalid;
 
         if (count_of_programs == 0) {
@@ -3073,6 +3083,12 @@ _ebpf_program_load_native(
                 file_name);
             goto Done;
         }
+
+        EBPF_LOG_MESSAGE_UINT64(
+            EBPF_TRACELOG_LEVEL_ERROR,
+            EBPF_TRACELOG_KEYWORD_API,
+            "_ebpf_program_load_native: program handle buffer allocation success.",
+            count_of_programs );
 
         if (count_of_maps > 0) {
             map_handles = (ebpf_handle_t*)ebpf_allocate(count_of_maps * sizeof(ebpf_handle_t));
@@ -3111,6 +3127,7 @@ _ebpf_program_load_native(
         native_module_fd = ebpf_fd_invalid;
 
         *program_fd = object->programs[0]->fd;
+        printf("Loaded program %s, [fd=%d]\n", file_name, *program_fd);
     } catch (const std::bad_alloc&) {
         result = EBPF_NO_MEMORY;
         goto Done;

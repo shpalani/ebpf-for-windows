@@ -1100,7 +1100,6 @@ _print_test_control_info(const test_control_info& test_control_info)
         LOG_INFO("test extension restart delay: {} ms", test_control_info.extension_restart_delay_ms);
     }
 }
-
 #if 0
 static void
 _set_up_tailcall_program(bpf_object* object, const std::string& map_name)
@@ -1336,25 +1335,24 @@ _mt_bindmonitor_tail_call_invoke_program_test(const test_control_info& test_cont
         _load_attach_tail_program(file_name, 0, EBPF_ATTACH_TYPE_BIND, program_name, program_type);
 
     // Set up the tail call programs.
-    //_set_up_tailcall_program(program_object.get(), map_name);
+    // _set_up_tailcall_program(program_object.get(), map_name);
 
     // Needed for thread_context initialization.
     constexpr uint32_t MAX_BIND_PROGRAM = 1;
 
     // Storage for object pointers for each ebpf program file opened by bpf_object__open().
     std::vector<object_table_entry> object_table(MAX_BIND_PROGRAM);
-#if 1
+
     for (uint32_t index = 0; auto& entry : object_table) {
         entry.available = true;
         entry.lock = std::make_unique<std::mutex>();
         entry.object = std::move(program_object);
-        // entry.attach = !(index % 2) ? true : false;
         entry.attach = true;
         entry.index = index++;
         entry.reuse_count = 0;
         entry.tag = 0xC001DEA2;
     }
-#endif
+
     size_t total_threads = test_control_info.threads_count;
     std::vector<thread_context> thread_context_table(
         total_threads, {{}, {}, false, {}, thread_role_type::ROLE_NOT_SET, 0, 0, 0, false, 0, 0, object_table});

@@ -1240,6 +1240,11 @@ _ebpf_native_load_programs(_Inout_ ebpf_native_module_t* module)
     native_programs = module->programs;
 
     _ebpf_native_initialize_programs(native_programs, programs, program_count);
+    EBPF_LOG_MESSAGE_UINT64(
+            EBPF_TRACELOG_LEVEL_ERROR,
+            EBPF_TRACELOG_KEYWORD_PROGRAM,
+            "_ebpf_native_load_programs: Program count",
+            program_count);
 
     for (uint32_t count = 0; count < program_count; count++) {
         ebpf_native_program_t* native_program = &native_programs[count];
@@ -1275,6 +1280,11 @@ _ebpf_native_load_programs(_Inout_ ebpf_native_module_t* module)
         memcpy(program_name, program->program_name, program_name_length);
         parameters.program_name.value = program_name;
         parameters.program_name.length = program_name_length;
+        EBPF_LOG_MESSAGE_UTF8_STRING(
+            EBPF_TRACELOG_LEVEL_ERROR,
+            EBPF_TRACELOG_KEYWORD_PROGRAM,
+            "_ebpf_native_load_programs: Program name",
+            &parameters.program_name);
 
         memcpy(section_name, program->section_name, section_name_length);
         parameters.section_name.value = section_name;

@@ -1768,6 +1768,16 @@ ebpf_program_attach_link(_Inout_ ebpf_program_t* program, _Inout_ ebpf_link_t* l
     state = ebpf_lock_lock(&program->lock);
     ebpf_list_insert_tail(&program->links, &((ebpf_core_object_t*)link)->object_list_entry);
     program->link_count++;
+    EBPF_LOG_MESSAGE_UTF8_STRING(
+            EBPF_TRACELOG_LEVEL_ERROR,
+            EBPF_TRACELOG_KEYWORD_PROGRAM,
+            "ebpf_program_attach_link: program name",
+            &program->parameters.program_name);
+    EBPF_LOG_MESSAGE_UINT64(
+            EBPF_TRACELOG_LEVEL_ERROR,
+            EBPF_TRACELOG_KEYWORD_PROGRAM,
+            "ebpf_program_attach_link: program link count",
+            program->link_count);
     ebpf_lock_unlock(&program->lock, state);
     EBPF_RETURN_VOID();
 }
@@ -1862,6 +1872,16 @@ ebpf_program_create_and_initialize(
     if (retval != EBPF_SUCCESS) {
         goto Done;
     }
+    EBPF_LOG_MESSAGE_UTF8_STRING(
+            EBPF_TRACELOG_LEVEL_ERROR,
+            EBPF_TRACELOG_KEYWORD_PROGRAM,
+            "ebpf_program_create_and_initialize: Program name",
+            &program->parameters.program_name);
+    EBPF_LOG_MESSAGE_UINT64(
+            EBPF_TRACELOG_LEVEL_ERROR,
+            EBPF_TRACELOG_KEYWORD_PROGRAM,
+            "ebpf_program_create_and_initialize: handle , program handle",
+            *program_handle);
 
 Done:
     EBPF_OBJECT_RELEASE_REFERENCE((ebpf_core_object_t*)program);

@@ -54,7 +54,7 @@ _program_load_attach_helper::initialize(
 
     program_fd = bpf_program__fd(program);
     REQUIRE(program_fd > 0);
-
+    printf("program name [%s], program_fd: [%d]\n", program_name, program_fd);
     // Attach program to link.
     REQUIRE(hook.attach_link(program_fd, attach_parameters, attach_parameters_size, &_link) == EBPF_SUCCESS);
 
